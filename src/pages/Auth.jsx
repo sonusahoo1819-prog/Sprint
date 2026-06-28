@@ -70,7 +70,7 @@ export default function Auth() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'radial-gradient(circle at 50% 50%, #FFFFFF 0%, #FAF9F6 100%)',
+        background: 'radial-gradient(circle at 50% 50%, var(--bg-primary) 0%, var(--bg-secondary) 100%)',
       }}
     >
       {/* Background blobs for spatial visual depth */}

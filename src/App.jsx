@@ -4,12 +4,22 @@ import CommandCenter from './components/CommandCenter';
 import Dashboard from './pages/Dashboard';
 import Celebration from './components/Celebration';
 import Auth from './pages/Auth';
+import Header from './components/Header';
 import { supabase } from './lib/supabaseClient';
 
 export default function App() {
   const [appStage, setAppStage] = useState('landing'); // landing, briefing, dashboard
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [theme, setTheme] = useState('light');
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+  };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -20,7 +30,6 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setLoading(false);
-      // Reset flow back to landing when logging out
       if (!session) {
         setAppStage('landing');
       }
@@ -39,7 +48,7 @@ export default function App() {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#FAF9F6',
+          background: 'var(--bg-secondary)',
           color: 'var(--text-secondary)',
           gap: '12px',
         }}
@@ -55,10 +64,11 @@ export default function App() {
     );
   }
 
-  // If no user is logged in, redirect to Auth page
+  // If no user is logged in, redirect to Auth page with Header
   if (!session) {
     return (
-      <div className="sprint-app-root" style={{ position: 'relative', minHeight: '100vh' }}>
+      <div className="sprint-app-root" style={{ position: 'relative', minHeight: '100vh', background: 'var(--bg-secondary)' }}>
+        <Header theme={theme} toggleTheme={toggleTheme} />
         <div className="noise-overlay" />
         <Celebration />
         <div className="ambient-bg">
@@ -78,7 +88,8 @@ export default function App() {
   const userName = metaFirstName ? (metaFirstName.trim().charAt(0).toUpperCase() + metaFirstName.trim().slice(1)) : fallbackName;
 
   return (
-    <div className="sprint-app-root" style={{ position: 'relative', minHeight: '100vh' }}>
+    <div className="sprint-app-root" style={{ position: 'relative', minHeight: '100vh', background: 'var(--bg-secondary)' }}>
+      <Header theme={theme} toggleTheme={toggleTheme} />
       <div className="noise-overlay" />
       <Celebration />
 
@@ -97,7 +108,7 @@ export default function App() {
       )}
 
       {appStage === 'dashboard' && (
-        <div className="fade-in-workspace" style={{ animation: 'fade-workspace-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards' }}>
+        <div className="fade-in-workspace" style={{ animation: 'fade-workspace-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards', paddingTop: '60px' }}>
           <Dashboard session={session} />
         </div>
       )}

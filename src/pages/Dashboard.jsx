@@ -12,7 +12,7 @@ import AutonomousPlanner from '../features/AutonomousPlanner';
 import { Sparkles, Zap, ShieldAlert, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
-export default function Dashboard({ session }) {
+export default function Dashboard({ session, onNavigateHome }) {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [aiState, setAiState] = useState('idle');
   const [focusTask, setFocusTask] = useState(null);
@@ -306,7 +306,7 @@ export default function Dashboard({ session }) {
       </aside>
 
       {/* Dock Navigation */}
-      <Navigation activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Navigation activeTab={activeTab} setActiveTab={setActiveTab} onNavigateHome={onNavigateHome} />
 
       {/* Full-screen Focus Bubble Overlay */}
       {focusTask && (

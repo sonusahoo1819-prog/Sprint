@@ -1,22 +1,81 @@
-import React, { useState } from 'react';
-import { AlertCircle, ShieldAlert, Sparkles, HelpCircle, CheckCircle, Hourglass } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { AlertCircle, ShieldAlert, Sparkles, HelpCircle, CheckCircle, Hourglass, ShieldCheck } from 'lucide-react';
 import { fireCelebration } from './Celebration';
+import { supabase } from '../lib/supabaseClient';
 
 export default function DangerRadar() {
-  const [tasks, setTasks] = useState([
-    { id: 1, name: 'Submit V1 Prototype Code', hoursLeft: 2, importance: 'High', color: '#EF4444', zone: 'danger', suggestion: 'Block calendar immediately. Sprint AI has auto-declined your 3:00 PM check-in to clear 2 hours of deep work.' },
-    { id: 2, name: 'Prepare Client Briefing Deck', hoursLeft: 6, importance: 'Medium', color: '#F59E0B', zone: 'warning', suggestion: 'Suggesting 1 hour of Focus Bubble mode after lunch. Sprint AI will compile references for you.' },
-    { id: 3, name: 'Review Frontend Design Spec', hoursLeft: 14, importance: 'Low', color: '#10B981', zone: 'safe', suggestion: 'On track. Task scheduled for tomorrow morning during your typical peak layout design hours.' }
-  ]);
+  const [tasks, setTasks] = useState([]);
+  const [activeTask, setActiveTask] = useState(null);
 
-  const [activeTask, setActiveTask] = useState(tasks[0]);
+  useEffect(() => {
+    fetchTasks();
+    // Listen for Kanban update events to sync in real-time
+    window.addEventListener('sprint_refresh_tasks', fetchTasks);
+    return () => {
+      window.removeEventListener('sprint_refresh_tasks', fetchTasks);
+    };
+  }, []);
 
-  const handleResolve = (id, e) => {
-    setTasks(tasks.filter(t => t.id !== id));
-    if (activeTask && activeTask.id === id) {
-      setActiveTask(null);
+  const fetchTasks = async () => {
+    const { data } = await supabase.from('tasks').select('*');
+    if (data) {
+      // Filter out completed tasks
+      const active = data.filter(t => t.status !== 'done');
+      
+      // Map tasks to Radar fields dynamically
+      const mapped = active.map(t => {
+        let zone = 'safe';
+        let hoursLeft = 14;
+        let suggestion = 'On track. Task scheduled for tomorrow morning during your typical peak layout design hours.';
+        let color = '#10B981';
+
+        if (t.urgency === 'High') {
+          zone = 'danger';
+          hoursLeft = 2;
+          suggestion = 'Block calendar immediately. Sprint AI suggests auto-declining non-essential syncs to clear deep work focus.';
+          color = '#EF4444';
+        } else if (t.urgency === 'Medium') {
+          zone = 'warning';
+          hoursLeft = 6;
+          suggestion = 'Suggesting 1 hour of Focus Bubble mode after lunch. Sprint AI will prepare local reference data.';
+          color = '#F59E0B';
+        }
+
+        return {
+          id: t.id,
+          name: t.title,
+          hoursLeft,
+          importance: t.urgency,
+          color,
+          zone,
+          suggestion
+        };
+      });
+
+      setTasks(mapped);
+      
+      // Set active task default to the most urgent task
+      if (mapped.length > 0) {
+        const dangerTask = mapped.find(t => t.zone === 'danger');
+        const warningTask = mapped.find(t => t.zone === 'warning');
+        setActiveTask(dangerTask || warningTask || mapped[0]);
+      } else {
+        setActiveTask(null);
+      }
     }
-    fireCelebration(e.clientX, e.clientY);
+  };
+
+  const handleResolve = async (id, e) => {
+    if (e) e.stopPropagation();
+    const { error } = await supabase.from('tasks').update({ status: 'done' }).eq('id', id);
+    if (!error) {
+      fetchTasks();
+      // Notify KanbanBoard and Analytics to reload
+      window.dispatchEvent(new Event('sprint_refresh_tasks'));
+      fireCelebration(e ? e.clientX : window.innerWidth / 2, e ? e.clientY : window.innerHeight / 2);
+    } else {
+      console.error('Failed to complete task in radar:', error);
+    }
   };
 
   return (
@@ -51,6 +110,7 @@ export default function DangerRadar() {
           background: 'rgba(255, 255, 255, 0.4)',
           border: '1px solid rgba(255, 255, 255, 0.65)',
           position: 'relative',
+          boxSizing: 'border-box'
         }}
       >
         {/* The axis line */}
@@ -98,7 +158,7 @@ export default function DangerRadar() {
                   textAlign: 'center',
                   whiteSpace: 'nowrap',
                   transform: activeTask?.id === t.id ? 'scale(1.05)' : 'scale(1)',
-                  transition: 'all 0.25s ease',
+                  transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
                 }}
               >
                 {t.name} ({t.hoursLeft}h)
@@ -108,7 +168,7 @@ export default function DangerRadar() {
 
           {/* Warning Zone (Center) */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, position: 'relative' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: '700', color: '#D97706', textTransform: 'uppercase', marginBottom: '32px' }}>Warning Zone (4-12h)</span>
+            <span style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '32px' }}>Warning Zone (4 - 12h)</span>
             
             {tasks.filter(t => t.zone === 'warning').map(t => (
               <div 
@@ -130,7 +190,7 @@ export default function DangerRadar() {
                   textAlign: 'center',
                   whiteSpace: 'nowrap',
                   transform: activeTask?.id === t.id ? 'scale(1.05)' : 'scale(1)',
-                  transition: 'all 0.25s ease',
+                  transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
                 }}
               >
                 {t.name} ({t.hoursLeft}h)
@@ -138,31 +198,31 @@ export default function DangerRadar() {
             ))}
           </div>
 
-          {/* Danger Zone (Right) */}
+          {/* Critical Zone (Right) */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, position: 'relative' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: '700', color: '#DC2626', textTransform: 'uppercase', marginBottom: '32px' }}>Critical Zone (&lt;4h)</span>
+            <span style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '32px' }}>Critical Zone (&lt;4h)</span>
             
             {tasks.filter(t => t.zone === 'danger').map(t => (
               <div 
                 key={t.id} 
                 onClick={() => setActiveTask(t)}
-                className="glass-panel pulse-glow-danger"
+                className="glass-panel pulse-alert-border"
                 style={{
                   position: 'absolute',
                   top: '40px',
                   padding: '8px 14px',
                   borderRadius: '10px',
-                  background: activeTask?.id === t.id ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.65)',
-                  border: activeTask?.id === t.id ? '1.5px solid #EF4444' : '1px solid rgba(255,255,255,0.7)',
-                  boxShadow: '0 0 12px rgba(239, 68, 68, 0.15)',
+                  background: activeTask?.id === t.id ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.7)',
+                  border: activeTask?.id === t.id ? '1.5px solid #EF4444' : '1px solid rgba(255,255,255,0.75)',
+                  boxShadow: activeTask?.id === t.id ? '0 8px 20px rgba(239, 68, 68, 0.2)' : 'var(--glass-shadow)',
                   cursor: 'pointer',
                   fontSize: '0.8rem',
-                  fontWeight: '600',
+                  fontWeight: '700',
                   color: 'var(--text-primary)',
                   textAlign: 'center',
                   whiteSpace: 'nowrap',
                   transform: activeTask?.id === t.id ? 'scale(1.05)' : 'scale(1)',
-                  transition: 'all 0.25s ease',
+                  transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
                 }}
               >
                 🚨 {t.name} ({t.hoursLeft}h)
@@ -172,8 +232,8 @@ export default function DangerRadar() {
         </div>
       </div>
 
-      {/* Selected Task AI Recovery Plan Details */}
-      {activeTask && (
+      {/* Active Selected Task Analysis / Autopilot Plan */}
+      {activeTask ? (
         <div 
           className="glass-panel"
           style={{
@@ -183,82 +243,94 @@ export default function DangerRadar() {
             border: `1.5px solid ${activeTask.color}`,
             boxShadow: `0 12px 32px rgba(31, 38, 135, 0.03)`,
             display: 'flex',
-            justifyContent: 'space-between',
             alignItems: 'center',
+            justifyContent: 'space-between',
             gap: '24px',
+            transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
           }}
         >
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'start' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '10px',
-              background: activeTask.zone === 'danger' ? 'rgba(239, 68, 68, 0.08)' : activeTask.zone === 'warning' ? 'rgba(245, 158, 11, 0.08)' : 'rgba(16, 185, 129, 0.08)',
+              width: '44px',
+              height: '44px',
+              borderRadius: '12px',
+              background: `${activeTask.color}15`,
               color: activeTask.color,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}>
-              {activeTask.zone === 'danger' ? <ShieldAlert size={20} /> : <AlertCircle size={20} />}
+              <AlertCircle size={22} />
             </div>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '0.98rem', fontWeight: '800' }}>{activeTask.name}</span>
+                <h4 style={{ fontSize: '0.92rem', fontWeight: '800', color: 'var(--text-primary)' }}>{activeTask.name}</h4>
                 <span style={{
-                  fontSize: '0.68rem',
-                  fontWeight: '700',
+                  fontSize: '0.62rem',
+                  fontWeight: '800',
+                  textTransform: 'uppercase',
+                  padding: '2px 8px',
+                  borderRadius: 'var(--radius-full)',
                   background: activeTask.color,
                   color: 'white',
-                  padding: '2px 8px',
-                  borderRadius: '4px'
+                  letterSpacing: '0.04em'
                 }}>
                   {activeTask.importance} Priority
                 </span>
               </div>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: '1.45', marginTop: '4px' }}>
-                <strong style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Sparkles size={12} color="var(--color-blue)" />
-                  Sprint AI Autopilot Plan:
-                </strong>{' '}
-                {activeTask.suggestion}
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '6px', lineHeight: '1.45' }}>
+                ✨ <strong>Sprint AI Autopilot Plan:</strong> {activeTask.suggestion}
               </p>
             </div>
           </div>
 
-          <button
+          <button 
             onClick={(e) => handleResolve(activeTask.id, e)}
             className="btn-premium"
             style={{
               padding: '10px 20px',
-              fontSize: '0.82rem',
-              background: activeTask.zone === 'danger' ? '#EF4444' : 'var(--gradient-blue-purple)',
-              boxShadow: activeTask.zone === 'danger' ? '0 8px 24px rgba(239, 68, 68, 0.25)' : 'none',
-              borderRadius: 'var(--radius-full)',
-              flexShrink: 0
+              fontSize: '0.8rem',
+              background: activeTask.color,
+              boxShadow: `0 8px 20px ${activeTask.color}25`
             }}
           >
-            <CheckCircle size={16} />
-            Mitigate Danger
+            <Sparkles size={14} /> Mitigate Danger
           </button>
         </div>
-      )}
-
-      {tasks.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-tertiary)' }}>
-          🎉 All deadlines are fully mitigated. Excellent speed!
+      ) : (
+        <div 
+          className="glass-panel"
+          style={{
+            padding: '32px',
+            borderRadius: 'var(--radius-md)',
+            background: 'rgba(255, 255, 255, 0.45)',
+            border: '1px solid rgba(255, 255, 255, 0.7)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '12px',
+            textAlign: 'center',
+          }}
+        >
+          <div style={{
+            width: '48px',
+            height: '48px',
+            borderRadius: '50%',
+            background: 'rgba(16, 185, 129, 0.08)',
+            color: '#10B981',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+            <ShieldCheck size={24} />
+          </div>
+          <div>
+            <h4 style={{ fontSize: '0.95rem', fontWeight: '800', color: 'var(--text-primary)' }}>All Tasks Cleared</h4>
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '4px' }}>No active deadline threats detected. Keep up the high momentum!</p>
+          </div>
         </div>
       )}
-
-      <style>{`
-        .pulse-glow-danger {
-          animation: glow-red 1.5s infinite alternate ease-in-out;
-        }
-        @keyframes glow-red {
-          0% { box-shadow: 0 0 4px rgba(239, 68, 68, 0.2); }
-          100% { box-shadow: 0 0 16px rgba(239, 68, 68, 0.5); }
-        }
-      `}</style>
     </div>
   );
 }

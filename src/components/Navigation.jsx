@@ -11,7 +11,7 @@ import {
   Compass
 } from 'lucide-react';
 
-export default function Navigation({ activeTab, setActiveTab }) {
+export default function Navigation({ activeTab, setActiveTab, onNavigateHome }) {
   const [hoveredIdx, setHoveredIdx] = useState(null);
 
   const menuItems = [
@@ -64,7 +64,13 @@ export default function Navigation({ activeTab, setActiveTab }) {
               key={item.id}
               onMouseEnter={() => setHoveredIdx(idx)}
               onMouseLeave={() => setHoveredIdx(null)}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => {
+                if (item.id === 'landing') {
+                  if (onNavigateHome) onNavigateHome();
+                } else {
+                  setActiveTab(item.id);
+                }
+              }}
               style={{
                 position: 'relative',
                 cursor: 'pointer',

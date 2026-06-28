@@ -17,7 +17,7 @@ const getTableDefaults = (table) => {
   if (stored) {
     try {
       const parsed = JSON.parse(stored);
-      if (parsed.some(item => ['t1', 'h1', 'e1'].includes(item.id))) {
+      if (parsed.some(item => /^[the]\d$/.test(item.id))) {
         localStorage.removeItem(`sprint_${table}`);
       }
     } catch (e) {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Check, Clock, Plus, Star, Sparkles, X, Zap } from 'lucide-react';
+import { Play, Check, Clock, Plus, Star, Sparkles, X, Zap, Trash2 } from 'lucide-react';
 import { fireCelebration } from './Celebration';
 import { supabase } from '../lib/supabaseClient';
 
@@ -38,10 +38,12 @@ export default function KanbanBoard({ onStartFocus }) {
   };
 
   const completeTask = async (id, e) => {
-    fireCelebration(e.clientX, e.clientY);
+    if (e) e.stopPropagation();
+    fireCelebration(e ? e.clientX : window.innerWidth / 2, e ? e.clientY : window.innerHeight / 2);
     const { error } = await supabase.from('tasks').update({ status: 'done' }).eq('id', id);
     if (!error) {
       setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'done' } : t));
+      window.dispatchEvent(new Event('sprint_refresh_tasks')); // reload analytics!
     } else {
       console.error('Failed to complete task in database:', error);
     }
@@ -51,12 +53,24 @@ export default function KanbanBoard({ onStartFocus }) {
     const { error } = await supabase.from('tasks').update({ status: 'progress' }).eq('id', id);
     if (!error) {
       setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'progress' } : t));
+      window.dispatchEvent(new Event('sprint_refresh_tasks')); // reload analytics!
       const task = tasks.find(t => t.id === id);
       if (task && onStartFocus) {
         onStartFocus(task.title);
       }
     } else {
       console.error('Failed to start task in database:', error);
+    }
+  };
+
+  const deleteTask = async (id, e) => {
+    if (e) e.stopPropagation();
+    const { error } = await supabase.from('tasks').delete().eq('id', id);
+    if (!error) {
+      setTasks(prev => prev.filter(t => t.id !== id));
+      window.dispatchEvent(new Event('sprint_refresh_tasks')); // reload analytics!
+    } else {
+      console.error('Failed to delete task:', error);
     }
   };
 
@@ -80,10 +94,7 @@ export default function KanbanBoard({ onStartFocus }) {
       status: 'todo',
       urgency: cleanUrgency,
       color: colorMap[category] || 'var(--color-blue)',
-      duration: effort,
-      category: category,
-      energy: energyLevel,
-      due_date: dueDateTime
+      duration: effort
     };
 
     const { error } = await supabase.from('tasks').insert(newTask);
@@ -389,12 +400,20 @@ export default function KanbanBoard({ onStartFocus }) {
                 <div
                   key={task.id}
                   className="glass-panel"
+                  onClick={(e) => {
+                    if (e.target.closest('button')) return;
+                    if (colKey === 'todo') {
+                      startTask(task.id);
+                    } else if (colKey === 'progress') {
+                      completeTask(task.id, e);
+                    }
+                  }}
                   style={{
                     padding: '16px',
                     borderRadius: 'var(--radius-md)',
                     background: 'rgba(255, 255, 255, 0.8)',
                     borderLeft: `4px solid ${task.color}`,
-                    cursor: 'grab',
+                    cursor: 'pointer',
                     transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
                   }}
                   onMouseEnter={(e) => {
@@ -450,7 +469,10 @@ export default function KanbanBoard({ onStartFocus }) {
 
                     {colKey === 'todo' && (
                       <button
-                        onClick={() => startTask(task.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startTask(task.id);
+                        }}
                         style={{
                           width: '28px',
                           height: '28px',
@@ -464,6 +486,25 @@ export default function KanbanBoard({ onStartFocus }) {
                         title="Start focus block"
                       >
                         <Play size={12} fill="var(--color-blue)" stroke="none" />
+                      </button>
+                    )}
+
+                    {colKey === 'done' && (
+                      <button
+                        onClick={(e) => deleteTask(task.id, e)}
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '50%',
+                          background: 'rgba(239, 68, 68, 0.08)',
+                          color: 'var(--color-pink)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        title="Delete task"
+                      >
+                        <Trash2 size={13} />
                       </button>
                     )}
                   </div>

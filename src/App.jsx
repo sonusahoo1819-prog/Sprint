@@ -112,7 +112,7 @@ export default function App() {
 
       {appStage === 'dashboard' && (
         <div className="fade-in-workspace" style={{ animation: 'fade-workspace-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards', paddingTop: '60px' }}>
-          <Dashboard session={session} />
+          <Dashboard session={session} onNavigateHome={() => setAppStage('landing')} />
         </div>
       )}
 

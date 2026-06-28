@@ -3,7 +3,7 @@ import { Play, Check, Clock, Plus, Star, Sparkles, X, Zap, Trash2 } from 'lucide
 import { fireCelebration } from './Celebration';
 import { supabase } from '../lib/supabaseClient';
 
-export default function KanbanBoard({ onStartFocus }) {
+export default function KanbanBoard({ session, onStartFocus }) {
   const [tasks, setTasks] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
@@ -28,10 +28,17 @@ export default function KanbanBoard({ onStartFocus }) {
     return () => {
       window.removeEventListener('sprint_refresh_tasks', fetchTasks);
     };
-  }, []);
+  }, [session]);
 
   const fetchTasks = async () => {
-    const { data, error } = await supabase.from('tasks').select('*');
+    if (!session?.user?.id) {
+      setTasks([]);
+      return;
+    }
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('user_id', session.user.id);
     if (!error && data) {
       setTasks(data);
     }
@@ -94,7 +101,8 @@ export default function KanbanBoard({ onStartFocus }) {
       status: 'todo',
       urgency: cleanUrgency,
       color: colorMap[category] || 'var(--color-blue)',
-      duration: effort
+      duration: effort,
+      user_id: session?.user?.id || null
     };
 
     const { error } = await supabase.from('tasks').insert(newTask);

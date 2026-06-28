@@ -3,7 +3,7 @@ import { Calendar, Plus, ChevronLeft, ChevronRight, Clock, MapPin, Sparkles } fr
 import { fireCelebration } from './Celebration';
 import { supabase } from '../lib/supabaseClient';
 
-export default function Calendar3D() {
+export default function Calendar3D({ session }) {
   const [selectedDay, setSelectedDay] = useState(2); // Wednesday (index 2)
   const [hoveredDay, setHoveredDay] = useState(null);
   const [events, setEvents] = useState({ 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] });
@@ -21,10 +21,17 @@ export default function Calendar3D() {
 
   useEffect(() => {
     fetchEvents();
-  }, []);
+  }, [session]);
 
   const fetchEvents = async () => {
-    const { data, error } = await supabase.from('events').select('*');
+    if (!session?.user?.id) {
+      setEvents({ 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] });
+      return;
+    }
+    const { data, error } = await supabase
+      .from('events')
+      .select('*')
+      .eq('user_id', session.user.id);
     if (!error && data) {
       const grouped = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
       data.forEach(item => {
@@ -46,7 +53,8 @@ export default function Calendar3D() {
       time: '11:00 AM - 12:00 PM',
       type: 'focus',
       color: 'var(--color-blue)',
-      day: selectedDay
+      day: selectedDay,
+      user_id: session?.user?.id || null
     };
 
     const { error } = await supabase.from('events').insert(newEvent);

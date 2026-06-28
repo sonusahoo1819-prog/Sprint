@@ -143,13 +143,13 @@ export default function Dashboard({ session, onNavigateHome }) {
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
             <AutonomousPlanner />
-            <DangerRadar />
+            <DangerRadar session={session} />
           </div>
         );
       case 'garden':
-        return <HabitGarden />;
+        return <HabitGarden session={session} />;
       case 'analytics':
-        return <AnalyticsWidget />;
+        return <AnalyticsWidget session={session} />;
       case 'settings':
         return (
           <div className="glass-panel" style={{ padding: '28px', borderRadius: 'var(--radius-lg)', background: 'rgba(255,255,255,0.45)', border: '1px solid rgba(255,255,255,0.7)' }}>
@@ -199,8 +199,8 @@ export default function Dashboard({ session, onNavigateHome }) {
       default:
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-            <KanbanBoard onStartFocus={handleStartFocus} />
-            <Calendar3D />
+            <KanbanBoard session={session} onStartFocus={handleStartFocus} />
+            <Calendar3D session={session} />
           </div>
         );
     }

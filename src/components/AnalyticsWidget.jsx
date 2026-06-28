@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Award, Zap, HeartPulse, LineChart, Sparkles, TrendingUp, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
-export default function AnalyticsWidget() {
+export default function AnalyticsWidget({ session }) {
   const [activeScore, setActiveScore] = useState('focus'); // focus, energy, momentum
   const [tasks, setTasks] = useState([]);
 
@@ -13,10 +13,17 @@ export default function AnalyticsWidget() {
     return () => {
       window.removeEventListener('sprint_refresh_tasks', fetchTasks);
     };
-  }, []);
+  }, [session]);
 
   const fetchTasks = async () => {
-    const { data } = await supabase.from('tasks').select('*');
+    if (!session?.user?.id) {
+      setTasks([]);
+      return;
+    }
+    const { data } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('user_id', session.user.id);
     if (data) {
       setTasks(data);
     }

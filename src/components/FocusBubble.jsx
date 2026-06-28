@@ -1,41 +1,133 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, X, Zap, Volume2, Sparkles } from 'lucide-react';
 import { fireCelebration } from './Celebration';
 
 export default function FocusBubble({ taskName = "Build Sprint Spatial Dashboard UI", onClose }) {
-  const [timeLeft, setTimeLeft] = useState(25 * 60); // 25 minutes
+  const [totalDuration, setTotalDuration] = useState(25 * 60); // Default 25m
+  const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isRunning, setIsRunning] = useState(false);
   const [ambientSound, setAmbientSound] = useState(true);
 
-  useEffect(() => {
-    let timer = null;
-    if (isRunning && timeLeft > 0) {
-      timer = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
-      }, 100); // Speed up slightly for presentation/testing (e.g. 10x speed), wait - let's make it standard 1 second but adjustable
-      // standard 1s:
-      // timer = setInterval(() => { setTimeLeft((prev) => prev - 1); }, 1000);
-      // Wait, let's do standard 1000ms:
-    } else if (timeLeft === 0) {
-      setIsRunning(false);
-      // Celebrate completion!
-      fireCelebration(window.innerWidth / 2, window.innerHeight / 2);
-    }
-    return () => clearInterval(timer);
-  }, [isRunning, timeLeft]);
+  // Web Audio Context refs for real focus sounds
+  const audioCtxRef = useRef(null);
+  const gainNodeRef = useRef(null);
+  const oscLeftRef = useRef(null);
+  const oscRightRef = useRef(null);
+  const noiseNodeRef = useRef(null);
 
+  // standard 1-second interval ticking
   useEffect(() => {
-    // Standard timer speed
     let timer = null;
     if (isRunning && timeLeft > 0) {
       timer = setInterval(() => {
         setTimeLeft((prev) => prev - 1);
       }, 1000);
+    } else if (timeLeft === 0) {
+      setIsRunning(false);
+      fireCelebration(window.innerWidth / 2, window.innerHeight / 2);
     }
     return () => clearInterval(timer);
   }, [isRunning, timeLeft]);
 
+  // Audio lifecycle binder
+  useEffect(() => {
+    if (ambientSound && isRunning) {
+      startFocusAudio();
+    } else {
+      stopFocusAudio();
+    }
+    return () => stopFocusAudio();
+  }, [ambientSound, isRunning]);
+
+  const startFocusAudio = () => {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+      audioCtxRef.current = ctx;
+
+      // Binaural Beat: Left Oscillator (100Hz)
+      const oscL = ctx.createOscillator();
+      oscL.frequency.value = 100;
+      const pannerL = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+      if (pannerL) pannerL.pan.value = -1;
+
+      // Right Oscillator (110Hz -> creates a 10Hz Alpha Focus Wave)
+      const oscR = ctx.createOscillator();
+      oscR.frequency.value = 110;
+      const pannerR = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+      if (pannerR) pannerR.pan.value = 1;
+
+      // Soft Brown noise generator (simulates wind/ocean rustling)
+      const bufferSize = 2 * ctx.sampleRate;
+      const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const output = noiseBuffer.getChannelData(0);
+      let lastOut = 0.0;
+      for (let i = 0; i < bufferSize; i++) {
+        const white = Math.random() * 2 - 1;
+        output[i] = (lastOut + (0.02 * white)) / 1.02;
+        lastOut = output[i];
+        output[i] *= 3.5; 
+      }
+      const noise = ctx.createBufferSource();
+      noise.buffer = noiseBuffer;
+      noise.loop = true;
+
+      // Soft volume main gain
+      const mainGain = ctx.createGain();
+      mainGain.gain.value = 0.06;
+      gainNodeRef.current = mainGain;
+
+      // Connections
+      if (pannerL && pannerR) {
+        oscL.connect(pannerL).connect(mainGain);
+        oscR.connect(pannerR).connect(mainGain);
+      } else {
+        oscL.connect(mainGain);
+        oscR.connect(mainGain);
+      }
+      noise.connect(mainGain);
+      mainGain.connect(ctx.destination);
+
+      oscL.start(0);
+      oscR.start(0);
+      noise.start(0);
+
+      oscLeftRef.current = oscL;
+      oscRightRef.current = oscR;
+      noiseNodeRef.current = noise;
+    } catch (e) {
+      console.warn("Failed to initialize Web Audio:", e);
+    }
+  };
+
+  const stopFocusAudio = () => {
+    if (oscLeftRef.current) {
+      try { oscLeftRef.current.stop(); } catch(e){}
+      oscLeftRef.current = null;
+    }
+    if (oscRightRef.current) {
+      try { oscRightRef.current.stop(); } catch(e){}
+      oscRightRef.current = null;
+    }
+    if (noiseNodeRef.current) {
+      try { noiseNodeRef.current.stop(); } catch(e){}
+      noiseNodeRef.current = null;
+    }
+    if (audioCtxRef.current) {
+      try { audioCtxRef.current.close(); } catch(e){}
+      audioCtxRef.current = null;
+    }
+  };
+
   const toggleTimer = () => setIsRunning(!isRunning);
+
+  const selectPreset = (mins) => {
+    const secs = mins * 60;
+    setTotalDuration(secs);
+    setTimeLeft(secs);
+    setIsRunning(true);
+  };
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -43,7 +135,7 @@ export default function FocusBubble({ taskName = "Build Sprint Spatial Dashboard
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const progress = ((25 * 60 - timeLeft) / (25 * 60)) * 100;
+  const progress = ((totalDuration - timeLeft) / totalDuration) * 100;
 
   return (
     <div 
@@ -131,6 +223,7 @@ export default function FocusBubble({ taskName = "Build Sprint Spatial Dashboard
           maxWidth: '560px',
           width: '90%',
           textAlign: 'center',
+          boxSizing: 'border-box'
         }}
       >
         {/* Current Active Task details */}
@@ -138,9 +231,36 @@ export default function FocusBubble({ taskName = "Build Sprint Spatial Dashboard
           <Zap size={14} className="pulse-slow" />
           Active Focus Session
         </div>
-        <h2 style={{ fontSize: '1.6rem', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '28px', lineHeight: '1.35' }}>
+        <h2 style={{ fontSize: '1.6rem', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '20px', lineHeight: '1.35' }}>
           {taskName}
         </h2>
+
+        {/* Focus Presets Options */}
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '28px' }}>
+          {[15, 25, 30, 45, 60].map((mins) => {
+            const isSelected = totalDuration === mins * 60;
+            return (
+              <button
+                key={mins}
+                onClick={() => selectPreset(mins)}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '10px',
+                  fontSize: '0.75rem',
+                  fontWeight: '700',
+                  background: isSelected ? 'var(--gradient-blue-purple)' : 'rgba(0, 0, 0, 0.03)',
+                  color: isSelected ? '#FFFFFF' : 'var(--text-secondary)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  boxShadow: isSelected ? '0 4px 12px rgba(99, 102, 241, 0.2)' : 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.25s ease'
+                }}
+              >
+                {mins === 60 ? '1 Hour' : `${mins} min`}
+              </button>
+            );
+          })}
+        </div>
 
         {/* Breathing Focus Ring */}
         <div 
@@ -201,6 +321,9 @@ export default function FocusBubble({ taskName = "Build Sprint Spatial Dashboard
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              cursor: 'pointer',
+              border: 'none',
+              outline: 'none'
             }}
           >
             <Volume2 size={18} />
@@ -215,6 +338,7 @@ export default function FocusBubble({ taskName = "Build Sprint Spatial Dashboard
               padding: '14px',
               boxShadow: '0 8px 24px rgba(99, 102, 241, 0.25)',
               borderRadius: 'var(--radius-full)',
+              cursor: 'pointer'
             }}
           >
             {isRunning ? (

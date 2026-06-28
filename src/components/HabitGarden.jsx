@@ -3,16 +3,23 @@ import { Check, Flame, Plus, Sparkles, HelpCircle } from 'lucide-react';
 import { fireCelebration } from './Celebration';
 import { supabase } from '../lib/supabaseClient';
 
-export default function HabitGarden() {
+export default function HabitGarden({ session }) {
   const [habits, setHabits] = useState([]);
   const [newHabitName, setNewHabitName] = useState('');
 
   useEffect(() => {
     fetchHabits();
-  }, []);
+  }, [session]);
 
   const fetchHabits = async () => {
-    const { data, error } = await supabase.from('habits').select('*');
+    if (!session?.user?.id) {
+      setHabits([]);
+      return;
+    }
+    const { data, error } = await supabase
+      .from('habits')
+      .select('*')
+      .eq('user_id', session.user.id);
     if (!error && data) {
       setHabits(data);
     }
@@ -50,7 +57,8 @@ export default function HabitGarden() {
       name: newHabitName,
       streak: 0,
       completed: false,
-      color: colors[habits.length % colors.length]
+      color: colors[habits.length % colors.length],
+      user_id: session?.user?.id || null
     };
 
     const { error } = await supabase.from('habits').insert(newHabit);

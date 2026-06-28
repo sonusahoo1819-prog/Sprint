@@ -3,7 +3,7 @@ import { AlertCircle, ShieldAlert, Sparkles, HelpCircle, CheckCircle, Hourglass,
 import { fireCelebration } from './Celebration';
 import { supabase } from '../lib/supabaseClient';
 
-export default function DangerRadar() {
+export default function DangerRadar({ session }) {
   const [tasks, setTasks] = useState([]);
   const [activeTask, setActiveTask] = useState(null);
 
@@ -14,10 +14,18 @@ export default function DangerRadar() {
     return () => {
       window.removeEventListener('sprint_refresh_tasks', fetchTasks);
     };
-  }, []);
+  }, [session]);
 
   const fetchTasks = async () => {
-    const { data } = await supabase.from('tasks').select('*');
+    if (!session?.user?.id) {
+      setTasks([]);
+      setActiveTask(null);
+      return;
+    }
+    const { data } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('user_id', session.user.id);
     if (data) {
       // Filter out completed tasks
       const active = data.filter(t => t.status !== 'done');

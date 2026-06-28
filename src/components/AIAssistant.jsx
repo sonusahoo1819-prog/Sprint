@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-export default function AIAssistant({ state = 'idle', userName = 'Explorer', onClick }) {
+export default function AIAssistant({ state = 'idle', userName = 'Explorer', onClick, onVoiceCommand }) {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isHovered, setIsHovered] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [spokenMessage, setSpokenMessage] = useState(null);
+  
   const orbRef = useRef(null);
+  const recognitionRef = useRef(null);
 
+  // Face movement tilt tracker
   useEffect(() => {
     const handleMouseMove = (e) => {
       if (!orbRef.current) return;
@@ -12,21 +17,17 @@ export default function AIAssistant({ state = 'idle', userName = 'Explorer', onC
       const orbCenterX = rect.left + rect.width / 2;
       const orbCenterY = rect.top + rect.height / 2;
       
-      // Calculate offset distance
       const dx = e.clientX - orbCenterX;
       const dy = e.clientY - orbCenterY;
       const distance = Math.sqrt(dx * dx + dy * dy);
       
-      // Maximum distance we track for tilting (e.g., 400px)
       const maxDistance = 400;
       const strength = Math.min(distance / maxDistance, 1);
       
-      // Calculate rotation angles (up to 15 degrees)
       const angle = 15;
       const rx = -(dy / (distance || 1)) * strength * angle;
       const ry = (dx / (distance || 1)) * strength * angle;
       
-      // Calculate subtle translation offset (up to 12px)
       const tx = (dx / (distance || 1)) * strength * 12;
       const ty = (dy / (distance || 1)) * strength * 12;
 
@@ -36,6 +37,87 @@ export default function AIAssistant({ state = 'idle', userName = 'Explorer', onC
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
+
+  // Conversational Voice feedback
+  const speak = (phrase, callback) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(phrase);
+      utterance.rate = 1.05;
+      utterance.pitch = 1.0;
+      if (callback) {
+        utterance.onend = callback;
+      }
+      window.speechSynthesis.speak(utterance);
+    } else if (callback) {
+      callback();
+    }
+  };
+
+  // Set up Speech Recognition
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const rec = new SpeechRecognition();
+      rec.continuous = false;
+      rec.interimResults = false;
+      rec.lang = 'en-US';
+
+      rec.onstart = () => {
+        setIsListening(true);
+        setSpokenMessage(null);
+        if (onClick) onClick('talking');
+      };
+
+      rec.onresult = (e) => {
+        const text = e.results[0][0].transcript;
+        setSpokenMessage(text);
+        if (onClick) onClick('thinking');
+        
+        // Wait briefly for visual feedback, then handle
+        setTimeout(() => {
+          if (onVoiceCommand) {
+            onVoiceCommand(text);
+          }
+        }, 1000);
+      };
+
+      rec.onerror = (e) => {
+        console.error('Speech recognition error:', e);
+        setIsListening(false);
+        if (onClick) onClick('idle');
+      };
+
+      rec.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = rec;
+    }
+  }, [onClick, onVoiceCommand]);
+
+  const handleOrbClick = () => {
+    if (!recognitionRef.current) {
+      const msg = "Voice control is not supported on this browser. Try Google Chrome.";
+      speak(msg);
+      setSpokenMessage(msg);
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+    } else {
+      const greeting = `I'm listening, ${userName}. Speak your mind.`;
+      setSpokenMessage(greeting);
+      speak(greeting, () => {
+        try {
+          recognitionRef.current.start();
+        } catch (e) {
+          console.error(e);
+        }
+      });
+    }
+  };
 
   const getOrbColor = () => {
     switch (state) {
@@ -52,6 +134,8 @@ export default function AIAssistant({ state = 'idle', userName = 'Explorer', onC
   };
 
   const getAssistantMessage = () => {
+    if (spokenMessage) return spokenMessage;
+    
     switch (state) {
       case 'thinking':
         return 'Sprint AI is optimizing your workflow...';
@@ -64,6 +148,21 @@ export default function AIAssistant({ state = 'idle', userName = 'Explorer', onC
         return 'I am keeping you on track today.';
     }
   };
+
+  // Expose the speak function to the parent component via custom event if needed
+  useEffect(() => {
+    const handleSpeakEvent = (e) => {
+      if (e.detail && e.detail.text) {
+        speak(e.detail.text);
+        setSpokenMessage(e.detail.text);
+        if (e.detail.state) {
+          if (onClick) onClick(e.detail.state);
+        }
+      }
+    };
+    window.addEventListener('sprint_speak', handleSpeakEvent);
+    return () => window.removeEventListener('sprint_speak', handleSpeakEvent);
+  }, [onClick]);
 
   return (
     <div 
@@ -96,7 +195,7 @@ export default function AIAssistant({ state = 'idle', userName = 'Explorer', onC
       {/* Holographic Orb */}
       <div
         ref={orbRef}
-        onClick={onClick}
+        onClick={handleOrbClick}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => {
           setIsHovered(false);

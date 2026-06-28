@@ -18,19 +18,83 @@ export default function Dashboard({ session }) {
   const [focusTask, setFocusTask] = useState(null);
   const [timelineState, setTimelineState] = useState('today'); // procrastinate, today, optimized
 
+  // Resolve first name metadata correctly for greeting
+  const metaFirstName = session?.user?.user_metadata?.first_name;
   const userEmail = session?.user?.email || 'Explorer';
   const rawName = userEmail.split('@')[0].replace(/[^a-zA-Z]/g, ' ');
-  const userName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+  const fallbackName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+  const userName = metaFirstName ? (metaFirstName.trim().charAt(0).toUpperCase() + metaFirstName.trim().slice(1)) : fallbackName;
 
   const handleStartFocus = (taskTitle) => {
     setFocusTask(taskTitle);
   };
 
-  const handleOrbClick = () => {
-    // Cycle AI states for demonstration
-    const states = ['idle', 'thinking', 'celebrating', 'talking'];
-    const nextIdx = (states.indexOf(aiState) + 1) % states.length;
-    setAiState(states[nextIdx]);
+  const handleVoiceCommand = async (command) => {
+    const cmd = command.toLowerCase();
+    
+    const speakFeedback = (text, state = 'talking') => {
+      window.dispatchEvent(new CustomEvent('sprint_speak', { detail: { text, state } }));
+    };
+
+    if (cmd.includes('add task') || cmd.includes('create task')) {
+      const taskTitle = command.replace(/(add task|create task)/i, '').trim();
+      if (taskTitle) {
+        setAiState('thinking');
+        const newTask = {
+          title: taskTitle,
+          status: 'todo',
+          urgency: 'Medium',
+          color: 'var(--color-blue)',
+          duration: '1h',
+          category: 'Work',
+          energy: 'Routine focus',
+          due_date: new Date().toISOString()
+        };
+        const { error } = await supabase.from('tasks').insert(newTask);
+        if (!error) {
+          window.dispatchEvent(new Event('sprint_refresh_tasks'));
+          setAiState('celebrating');
+          speakFeedback(`I have added the task: "${taskTitle}" to your workstation.`, 'celebrating');
+          setTimeout(() => setAiState('idle'), 4000);
+        } else {
+          setAiState('idle');
+          speakFeedback("Sorry, I encountered an issue adding that task.");
+        }
+      } else {
+        speakFeedback("What task title would you like me to add?");
+      }
+    } else if (cmd.includes('focus') || cmd.includes('start focus')) {
+      setFocusTask("Optimal Deep Focus Session");
+      setAiState('celebrating');
+      speakFeedback("Launching deep focus environment.", 'celebrating');
+      setTimeout(() => setAiState('idle'), 3000);
+    } else if (cmd.includes('garden') || cmd.includes('habits') || cmd.includes('go to habits')) {
+      setActiveTab('garden');
+      setAiState('celebrating');
+      speakFeedback("Switching tab to your habit garden.", 'celebrating');
+      setTimeout(() => setAiState('idle'), 3000);
+    } else if (cmd.includes('dashboard') || cmd.includes('go to dashboard')) {
+      setActiveTab('dashboard');
+      setAiState('celebrating');
+      speakFeedback("Opening your main workspace.", 'celebrating');
+      setTimeout(() => setAiState('idle'), 3000);
+    } else if (cmd.includes('optimize') || cmd.includes('optimize day')) {
+      setAiState('thinking');
+      speakFeedback("Running workspace scheduler optimization...", 'thinking');
+      setTimeout(() => {
+        setAiState('celebrating');
+        speakFeedback("Workspace optimization complete.", 'celebrating');
+        setTimeout(() => setAiState('idle'), 3000);
+      }, 2500);
+    } else if (cmd.includes('log out') || cmd.includes('sign out')) {
+      speakFeedback("Signing you out of your workstation.", 'idle');
+      setTimeout(() => {
+        supabase.auth.signOut();
+      }, 1500);
+    } else {
+      speakFeedback("I heard you, but that command is not registered. What else can I do for you?");
+      setAiState('idle');
+    }
   };
 
   const handleTimeTravelChange = (state) => {
@@ -234,7 +298,7 @@ export default function Dashboard({ session }) {
             border: '1px solid rgba(255, 255, 255, 0.7)',
           }}
         >
-          <AIAssistant state={aiState} userName={userName} onClick={handleOrbClick} />
+          <AIAssistant state={aiState} userName={userName} onClick={setAiState} onVoiceCommand={handleVoiceCommand} />
         </div>
 
         {/* Time Travel Slider widget */}

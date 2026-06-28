@@ -6,6 +6,7 @@ import Celebration from './components/Celebration';
 import Auth from './pages/Auth';
 import Header from './components/Header';
 import { supabase } from './lib/supabaseClient';
+import CustomCursor from './components/CustomCursor';
 
 export default function App() {
   const [appStage, setAppStage] = useState('landing'); // landing, briefing, dashboard
@@ -68,6 +69,7 @@ export default function App() {
   if (!session) {
     return (
       <div className="sprint-app-root" style={{ position: 'relative', minHeight: '100vh', background: 'var(--bg-secondary)' }}>
+        <CustomCursor />
         <Header theme={theme} toggleTheme={toggleTheme} />
         <div className="noise-overlay" />
         <Celebration />
@@ -89,6 +91,7 @@ export default function App() {
 
   return (
     <div className="sprint-app-root" style={{ position: 'relative', minHeight: '100vh', background: 'var(--bg-secondary)' }}>
+      <CustomCursor />
       <Header theme={theme} toggleTheme={toggleTheme} />
       <div className="noise-overlay" />
       <Celebration />

@@ -8,36 +8,23 @@ const isSupabaseConfigured = supabaseUrl && supabaseUrl !== 'your_supabase_url' 
 let supabaseClient;
 
 const getTableDefaults = (table) => {
-  if (table === 'tasks') {
-    return [
-      { id: 't1', title: 'Optimize neural schedule algorithms', status: 'progress', urgency: 'High', color: 'var(--color-blue)', duration: '2h' },
-      { id: 't2', title: 'Design Sprint Pitch Presentation', status: 'todo', urgency: 'Medium', color: 'var(--color-purple)', duration: '3.5h' },
-      { id: 't3', title: 'Review biometric burnout triggers', status: 'todo', urgency: 'Low', color: 'var(--color-orange)', duration: '1h' },
-      { id: 't4', title: 'Configure glassmorphic design tokens', status: 'done', urgency: 'Medium', color: 'var(--color-mint)', duration: '1.5h' },
-      { id: 't5', title: 'Stitch MCP setup validation', status: 'done', urgency: 'High', color: 'var(--color-sky)', duration: '0.5h' }
-    ];
-  }
-  if (table === 'habits') {
-    return [
-      { id: 'h1', name: '4 Hours of Deep Work', streak: 5, completed: false, color: 'var(--color-blue)' },
-      { id: 'h2', name: 'Drink 3L Water', streak: 12, completed: false, color: 'var(--color-sky)' },
-      { id: 'h3', name: 'Read 20 Pages', streak: 3, completed: false, color: 'var(--color-purple)' },
-      { id: 'h4', name: '30 min Exercise', streak: 8, completed: false, color: 'var(--color-mint)' }
-    ];
-  }
-  if (table === 'events') {
-    return [
-      { id: 'e1', title: 'Sprint Kickoff Sync', time: '09:00 AM - 10:00 AM', type: 'meeting', color: 'var(--color-blue)', day: 0 },
-      { id: 'e2', title: 'Deep Work: Core Architecture', time: '11:00 AM - 01:00 PM', type: 'focus', color: 'var(--color-mint)', day: 0 },
-      { id: 'e3', title: 'Client Pitch Presentation', time: '02:00 PM - 03:00 PM', type: 'meeting', color: 'var(--color-purple)', day: 1 },
-      { id: 'e4', title: 'AI Planner Engine Integration', time: '10:00 AM - 12:30 PM', type: 'focus', color: 'var(--color-blue)', day: 2 },
-      { id: 'e5', title: 'Sprint App Design Review', time: '03:00 PM - 04:00 PM', type: 'meeting', color: 'var(--color-pink)', day: 2 },
-      { id: 'e6', title: 'Design System Audit & Cleanup', time: '01:30 PM - 03:30 PM', type: 'focus', color: 'var(--color-orange)', day: 3 },
-      { id: 'e7', title: 'Weekly Review & Retro', time: '03:00 PM - 04:30 PM', type: 'meeting', color: 'var(--color-sky)', day: 4 }
-    ];
-  }
   return [];
 };
+
+// Reset old pre-seeded localStorage lists to start clean
+['tasks', 'habits', 'events'].forEach(table => {
+  const stored = localStorage.getItem(`sprint_${table}`);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      if (parsed.some(item => ['t1', 'h1', 'e1'].includes(item.id))) {
+        localStorage.removeItem(`sprint_${table}`);
+      }
+    } catch (e) {
+      localStorage.removeItem(`sprint_${table}`);
+    }
+  }
+});
 
 // Fluent Mock Query Builder for LocalStorage Fallback
 class MockSupabaseQueryBuilder {

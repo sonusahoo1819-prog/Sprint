@@ -676,3 +676,9 @@ button {
 .btn-premium:active {
   transform: translateY(1px) scale(0.98);
 }
+
+@media (min-width: 768px) {
+  body, button, a, input, select, textarea, [role="button"], .glass-panel, .perspective-container > div, nav.glass-panel div {
+    cursor: none !important;
+  }
+}

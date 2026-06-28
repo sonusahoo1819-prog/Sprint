@@ -1,14 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Check, Clock, Plus, Star, Sparkles } from 'lucide-react';
+import { Play, Check, Clock, Plus, Star, Sparkles, X, Zap } from 'lucide-react';
 import { fireCelebration } from './Celebration';
 import { supabase } from '../lib/supabaseClient';
 
 export default function KanbanBoard({ onStartFocus }) {
   const [tasks, setTasks] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Modal form states
   const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [category, setCategory] = useState('Work');
+  const [urgency, setUrgency] = useState('Medium urgency');
+  const [effort, setEffort] = useState('30 mins');
+  const [energyLevel, setEnergyLevel] = useState('Routine focus');
+  
+  // Default due date to current local time formatted for datetime-local inputs
+  const getLocalDateTimeString = () => {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    return now.toISOString().slice(0, 16);
+  };
+  const [dueDateTime, setDueDateTime] = useState(getLocalDateTimeString());
 
   useEffect(() => {
     fetchTasks();
+    window.addEventListener('sprint_refresh_tasks', fetchTasks);
+    return () => {
+      window.removeEventListener('sprint_refresh_tasks', fetchTasks);
+    };
   }, []);
 
   const fetchTasks = async () => {
@@ -45,18 +64,39 @@ export default function KanbanBoard({ onStartFocus }) {
     e.preventDefault();
     if (!newTaskTitle.trim()) return;
 
+    // Map categories to colors
+    const colorMap = {
+      Work: 'var(--color-blue)',
+      Personal: 'var(--color-purple)',
+      Health: 'var(--color-orange)',
+      Study: 'var(--color-sky)'
+    };
+
+    // Clean urgency string for database compatibility
+    const cleanUrgency = urgency.replace(' urgency', '');
+
     const newTask = {
       title: newTaskTitle,
       status: 'todo',
-      urgency: 'Medium',
-      color: 'var(--color-blue)',
-      duration: '1.5h'
+      urgency: cleanUrgency,
+      color: colorMap[category] || 'var(--color-blue)',
+      duration: effort,
+      category: category,
+      energy: energyLevel,
+      due_date: dueDateTime
     };
 
     const { error } = await supabase.from('tasks').insert(newTask);
     if (!error) {
       fetchTasks();
+      // Reset states
       setNewTaskTitle('');
+      setCategory('Work');
+      setUrgency('Medium urgency');
+      setEffort('30 mins');
+      setEnergyLevel('Routine focus');
+      setDueDateTime(getLocalDateTimeString());
+      setIsModalOpen(false);
       fireCelebration(e.clientX, e.clientY);
     } else {
       console.error('Failed to insert task to database:', error);
@@ -82,28 +122,238 @@ export default function KanbanBoard({ onStartFocus }) {
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '2px' }}>Drag tasks or launch focus sessions directly from cards.</p>
         </div>
 
-        <form onSubmit={addTask} style={{ display: 'flex', gap: '8px' }}>
-          <input
-            type="text"
-            placeholder="Add new task..."
-            value={newTaskTitle}
-            onChange={(e) => setNewTaskTitle(e.target.value)}
-            style={{
-              padding: '10px 16px',
-              borderRadius: 'var(--radius-full)',
-              border: '1px solid rgba(0,0,0,0.06)',
-              background: 'rgba(255, 255, 255, 0.85)',
-              fontSize: '0.82rem',
-              fontWeight: '500',
-              outline: 'none',
-              minWidth: '200px',
-            }}
-          />
-          <button type="submit" className="btn-premium" style={{ padding: '8px 16px', fontSize: '0.8rem' }}>
-            <Plus size={16} /> Add
-          </button>
-        </form>
+        <button 
+          onClick={() => setIsModalOpen(true)}
+          className="btn-premium"
+          style={{ padding: '10px 22px', fontSize: '0.85rem' }}
+        >
+          <Plus size={16} /> Add Priority Task
+        </button>
       </div>
+
+      {/* Structured Task Creator Modal */}
+      {isModalOpen && (
+        <div 
+          className="modal-overlay"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(0, 0, 0, 0.4)',
+            backdropFilter: 'blur(10px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            animation: 'fadeIn 0.25s ease-out'
+          }}
+        >
+          <div 
+            className="glass-panel"
+            style={{
+              width: '100%',
+              maxWidth: '520px',
+              padding: '32px',
+              borderRadius: '24px',
+              background: 'var(--bg-cream)',
+              border: '1px solid var(--glass-border)',
+              boxShadow: '0 24px 75px rgba(0, 0, 0, 0.45)',
+              position: 'relative',
+              boxSizing: 'border-box',
+              animation: 'scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+            }}
+          >
+            {/* Header / Title */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: '800', letterSpacing: '-0.02em', textTransform: 'uppercase', color: 'var(--text-primary)' }}>
+                Add Priority Task
+              </h3>
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={addTask} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* Task Title */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontSize: '0.72rem', fontWeight: '800', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Task Title
+                </label>
+                <input 
+                  type="text"
+                  placeholder="e.g. Prep slide deck outline"
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  required
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: '12px',
+                    fontSize: '0.88rem',
+                    width: '100%',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              {/* Grid Fields: Category & Urgency */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '0.72rem', fontWeight: '800', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Category
+                  </label>
+                  <select 
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: '12px',
+                      fontSize: '0.88rem',
+                      width: '100%',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <option value="Work">Work</option>
+                    <option value="Personal">Personal</option>
+                    <option value="Health">Health</option>
+                    <option value="Study">Study</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '0.72rem', fontWeight: '800', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Urgency
+                  </label>
+                  <select 
+                    value={urgency}
+                    onChange={(e) => setUrgency(e.target.value)}
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: '12px',
+                      fontSize: '0.88rem',
+                      width: '100%',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <option value="Low urgency">Low urgency</option>
+                    <option value="Medium urgency">Medium urgency</option>
+                    <option value="High urgency">High urgency</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Grid Fields: Effort & Energy Level */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '0.72rem', fontWeight: '800', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Clock size={12} /> Effort
+                  </label>
+                  <select 
+                    value={effort}
+                    onChange={(e) => setEffort(e.target.value)}
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: '12px',
+                      fontSize: '0.88rem',
+                      width: '100%',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <option value="15 mins">15 mins</option>
+                    <option value="30 mins">30 mins</option>
+                    <option value="1 hour">1 hour</option>
+                    <option value="1.5 hours">1.5 hours</option>
+                    <option value="2 hours">2 hours</option>
+                    <option value="3 hours">3 hours</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '0.72rem', fontWeight: '800', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Zap size={12} /> Energy Level
+                  </label>
+                  <select 
+                    value={energyLevel}
+                    onChange={(e) => setEnergyLevel(e.target.value)}
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: '12px',
+                      fontSize: '0.88rem',
+                      width: '100%',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <option value="Routine focus">Routine focus</option>
+                    <option value="Deep focus">Deep focus</option>
+                    <option value="High energy">High energy</option>
+                    <option value="Low energy">Low energy</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Due Date & Time */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontSize: '0.72rem', fontWeight: '800', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Due Date & Time
+                </label>
+                <input 
+                  type="datetime-local"
+                  value={dueDateTime}
+                  onChange={(e) => setDueDateTime(e.target.value)}
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: '12px',
+                    fontSize: '0.88rem',
+                    width: '100%',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              {/* Submit CTA */}
+              <button 
+                type="submit"
+                className="btn-premium"
+                style={{
+                  padding: '14px 28px',
+                  fontSize: '0.95rem',
+                  marginTop: '12px',
+                  borderRadius: '14px',
+                  width: '100%'
+                }}
+              >
+                Create Task
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Keyframe animation definitions */}
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes scaleIn {
+          from { transform: scale(0.95); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
 
       {/* Kanban Board Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', alignItems: 'start' }}>

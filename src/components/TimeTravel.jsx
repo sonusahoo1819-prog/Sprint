@@ -37,7 +37,7 @@ export default function TimeTravel({ onStateChange }) {
         return {
           title: 'Timeline: Today (Current Plan)',
           desc: 'Drag the timeline slider left or right to preview tomorrow based on your actions today.',
-          color: 'var(--color-blue)',
+          color: '#3B82F6',
           icon: Hourglass,
           badge: 'Active Plan'
         };

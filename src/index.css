@@ -337,7 +337,8 @@
   box-shadow: 0 0 12px rgba(59, 130, 246, 0.55) !important;
 }
 
-[data-theme="dark"] span[style*="var(--color-blue)"] {
+[data-theme="dark"] span[style*="color: var(--color-blue)"],
+[data-theme="dark"] span[style*="color: #3B82F6"] {
   color: #3B82F6 !important; /* Today's indicator glows */
   text-shadow: 0 0 8px rgba(59, 130, 246, 0.7) !important;
 }
